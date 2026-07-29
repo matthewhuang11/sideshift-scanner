@@ -1,0 +1,13 @@
+content_id,creator_id,campaign_id,platform,format_tags,post_date,url,transcript_or_caption
+ct1,c1,camp1,tiktok,"unboxing,voiceover,15-30s",2025-03-05,https://tiktok.com/@avachen/ct1,"wait until you see what's inside this box..."
+ct2,c1,camp2,tiktok,"hook-question,voiceover,fast-cut",2025-05-10,https://tiktok.com/@avachen/ct2,"have you ever wondered why your skin does this?"
+ct3,c2,camp1,tiktok,"unboxing,talking-head",2025-03-08,https://tiktok.com/@marcusreed/ct3,"alright let's see what we got here"
+ct4,c2,,tiktok,"talking-head,15-30s",2025-04-02,https://tiktok.com/@marcusreed/ct4,"three things nobody tells you about this"
+ct5,c3,camp1,instagram,"unboxing,voiceover,energetic",2025-03-12,https://instagram.com/p/ct5,"okay this unboxing is about to be unreal"
+ct6,c3,camp2,instagram,"hook-question,voiceover",2025-05-14,https://instagram.com/p/ct6,"what would you do if this happened to you?"
+ct7,c3,,youtube,"unboxing,15-30s",2025-06-01,https://youtube.com/shorts/ct7,"new starter kit just landed"
+ct8,c4,,tiktok,"skit,fast-cut,comedy",2025-06-05,https://tiktok.com/@jordanlee/ct8,"POV: your roommate finds your skincare stash"
+ct9,c5,camp2,tiktok,"hook-question,voiceover,calm",2025-05-18,https://tiktok.com/@samokafor/ct9,"here's something nobody talks about with recovery"
+ct10,c5,,instagram,"voiceover,15-30s",2025-04-20,https://instagram.com/p/ct10,"my honest routine this month"
+ct11,c1,camp1,instagram,"unboxing,voiceover,fast-cut",2025-03-20,https://instagram.com/p/ct11,"round two of unboxing because you asked"
+ct12,c2,camp2,tiktok,"hook-question,talking-head",2025-05-22,https://tiktok.com/@marcusreed/ct12,"would you actually use this every day?"
