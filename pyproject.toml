@@ -7,15 +7,22 @@ license = { text = "MIT" }
 dependencies = [
     "mcp[cli]>=1.2.0",
     "requests>=2.31.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "httpx>=0.27.0",
 ]
 
 [project.scripts]
 sideshift-scanner = "ugc_analytics.server:main"
+sideshift-scanner-web = "ugc_analytics.webapp:main"
+
+[tool.setuptools.package-data]
+ugc_analytics = ["static/*"]
 
 [build-system]
 requires = ["setuptools>=68"]

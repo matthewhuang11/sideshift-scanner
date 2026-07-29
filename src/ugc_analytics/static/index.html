@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SideShift Scanner</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+        <span>SideShift Scanner</span>
+      </div>
+      <nav>
+        <button class="nav-item active" data-view="dashboard">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          Dashboard
+        </button>
+        <button class="nav-item" data-view="creators">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/></svg>
+          Creators
+        </button>
+        <button class="nav-item" data-view="trending">
+          <svg viewBox="0 0 24 24"><path d="M4 16l5-6 4 4 7-9"/><path d="M15 5h5v5"/></svg>
+          Trending Formats
+        </button>
+        <button class="nav-item" data-view="top-performers">
+          <svg viewBox="0 0 24 24"><rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="16" y="3" width="4" height="17" rx="1"/></svg>
+          Top Performers
+        </button>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <h1 id="page-title">Dashboard</h1>
+        <button id="sync-btn" class="btn-primary">Sync Data</button>
+      </header>
+
+      <section class="view" data-view="dashboard">
+        <div class="stat-grid">
+          <div class="card stat-card">
+            <div class="stat-label">Creators</div>
+            <div class="stat-value" id="stat-creators">—</div>
+            <div class="stat-sub" id="stat-active">—</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">Total Views</div>
+            <div class="stat-value" id="stat-views">—</div>
+            <div class="stat-sub" id="stat-trend">—</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">Avg Engagement Rate</div>
+            <div class="stat-value" id="stat-engagement">—</div>
+            <div class="stat-sub muted">across latest snapshots</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">Content Items</div>
+            <div class="stat-value" id="stat-content">—</div>
+            <div class="stat-sub muted">in the local store</div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header">
+              <h2>Trending Formats</h2>
+              <span class="muted small">vs. roster baseline</span>
+            </div>
+            <div id="trending-list" class="list"></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h2>Top Performers</h2>
+              <span class="muted small">by views</span>
+            </div>
+            <div id="top-performers-list" class="list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view hidden" data-view="creators">
+        <div id="creators-grid" class="creators-grid"></div>
+      </section>
+
+      <section class="view hidden" data-view="trending">
+        <div class="card">
+          <div class="card-header">
+            <h2>Format performance vs. roster baseline</h2>
+          </div>
+          <div id="trending-full-list" class="list"></div>
+        </div>
+      </section>
+
+      <section class="view hidden" data-view="top-performers">
+        <div class="card">
+          <div class="card-header">
+            <h2>Ranked content</h2>
+            <select id="metric-select">
+              <option value="views">Views</option>
+              <option value="likes">Likes</option>
+              <option value="comments">Comments</option>
+              <option value="shares">Shares</option>
+              <option value="saves">Saves</option>
+              <option value="conversions">Conversions</option>
+              <option value="revenue">Revenue</option>
+              <option value="engagement_rate">Engagement rate</option>
+            </select>
+          </div>
+          <div id="top-performers-full-list" class="list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
