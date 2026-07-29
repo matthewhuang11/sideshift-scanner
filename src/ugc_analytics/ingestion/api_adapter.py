@@ -26,13 +26,27 @@ docs turned out to disagree with actual responses in three ways:
 per program (`campaigns[].contractStatus`) is used instead, and
 per-platform handles come from `campaigns[].handles[]` — richer than
 the docs implied, so `platforms`/`handle` are populated for real rather
-than left blank. `format_tags` stay empty from the API, matching the
-build spec's note that style/format tagging is derived analysis, not a
-SideShift field (see analysis/profiling.py).
+than left blank.
+
+SideShift doesn't tag content format/hook style at all, but post titles
+carry real `#hashtags` (e.g. "...#whip #appcreation #partner"), so those
+are extracted as `format_tags` — a real, already-present signal, rather
+than empty tags or a guessed heuristic. This is what makes
+`detect_trending_formats`/`recommend_creators_for_brief` work against
+real synced data instead of the CSV sample only.
+
+Each post's `earnings` (what SideShift paid out for it) is attached to
+its most recent metrics-history snapshot as `revenue` — SideShift's own
+dashboard doesn't appear to combine payout with engagement analytics in
+one ranked view, so this unlocks that (`top_performers(metric="revenue")`,
+revenue-aware creator profiles). It's a running total, not a daily
+breakdown, so it's only set on the latest snapshot per post rather than
+backdated across history (we don't know what it was on earlier dates).
 """
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timezone
 
 import requests
@@ -46,12 +60,23 @@ DEFAULT_BASE_URL = "https://app.sideshift.app/api/v1"
 # both claimed (ms) and actual (seconds) units depending on endpoint/field.
 _MS_THRESHOLD = 1_000_000_000_000
 
+_HASHTAG_RE = re.compile(r"#(\w+)")
+
 
 def _epoch_to_date(value: int | None) -> str | None:
     if not value:
         return None
     seconds = value / 1000 if value > _MS_THRESHOLD else value
     return datetime.fromtimestamp(seconds, tz=timezone.utc).date().isoformat()
+
+
+def _extract_hashtags(text: str | None) -> list[str]:
+    if not text:
+        return []
+    # dict.fromkeys dedupes while preserving first-seen order; some post
+    # titles repeat their caption text verbatim, which would otherwise
+    # double-count the same tag for one post.
+    return list(dict.fromkeys(tag.lower() for tag in _HASHTAG_RE.findall(text)))
 
 
 def _after(date_str: str | None, since: date | None) -> bool:
@@ -156,15 +181,17 @@ class SideShiftAPIAdapter(IngestionAdapter):
                 continue
             creator_id = str(item.get("contractorId") or item.get("creator") or item["id"])
             program_id = item.get("programId")
+            title = item.get("title") or item.get("description") or ""
             items.append(
                 ContentItem(
                     content_id=str(item["id"]),
                     creator_id=creator_id,
                     campaign_id=str(program_id) if program_id else None,
                     platform=item.get("platform") or "",
+                    format_tags=_extract_hashtags(title),
                     post_date=post_date,
                     url=item.get("postPage") or item.get("url") or "",
-                    transcript_or_caption=item.get("title") or item.get("description") or "",
+                    transcript_or_caption=title,
                 )
             )
         return items
@@ -179,11 +206,12 @@ class SideShiftAPIAdapter(IngestionAdapter):
             resp.raise_for_status()
             payload = resp.json()
             body = payload.get("data", payload)
+            post_metrics = []
             for snapshot in body.get("history", []):
                 snap_date = snapshot.get("date")
                 if not _after(snap_date, since):
                     continue
-                metrics.append(
+                post_metrics.append(
                     PerformanceMetric(
                         content_id=post_id,
                         snapshot_date=snap_date,
@@ -194,4 +222,11 @@ class SideShiftAPIAdapter(IngestionAdapter):
                         saves=int(snapshot.get("bookmarks") or 0),
                     )
                 )
+            if post_metrics and post.get("earnings") is not None:
+                # earnings is a running total as of now, not a per-day figure,
+                # so it only belongs on the most recent snapshot (don't assume
+                # the API returns history in date order).
+                latest = max(post_metrics, key=lambda m: m.snapshot_date)
+                latest.revenue = float(post["earnings"])
+            metrics.extend(post_metrics)
         return metrics

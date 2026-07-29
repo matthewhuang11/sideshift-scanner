@@ -86,13 +86,14 @@ POSTS_PAGE = {
     "data": [
         {
             "id": "post1",
-            "title": "Unboxing",
+            "title": "wait for it #unboxing #hookquestion",
             "platform": "tiktok",
             "postPage": "https://tiktok.com/post1",
             "uploadedAt": 1700000000,  # Unix seconds, not ms
             "creator": "avachen",
             "contractorId": "cr1",  # top-level, not nested under "contract"
             "programId": "p1",  # top-level, not nested under "program"
+            "earnings": 42.5,
         }
     ],
     "page": 1,
@@ -105,8 +106,8 @@ METRICS_HISTORY = {
     "data": {
         "postId": "post1",
         "history": [
-            {"date": "2025-03-01", "views": 1000, "likes": 100, "comments": 10, "shares": 5, "bookmarks": 20},
             {"date": "2025-03-08", "views": 2000, "likes": 200, "comments": 20, "shares": 10, "bookmarks": 40},
+            {"date": "2025-03-01", "views": 1000, "likes": 100, "comments": 10, "shares": 5, "bookmarks": 20},
         ],
         "totalDataPoints": 2,
         "periodDays": 7,
@@ -160,13 +161,37 @@ def test_fetch_content_items_pulls_creator_id_from_top_level_contractor_id():
     assert items[0].url == "https://tiktok.com/post1"
 
 
+def test_fetch_content_items_extracts_hashtags_as_format_tags():
+    adapter, _ = make_adapter()
+    items = adapter.fetch_content_items()
+    assert items[0].format_tags == ["unboxing", "hookquestion"]
+
+
+def test_extract_hashtags_dedupes_repeated_caption_text():
+    from ugc_analytics.ingestion.api_adapter import _extract_hashtags
+
+    title = "Check this out #whip #partner\n\nCheck this out #whip #partner"
+    assert _extract_hashtags(title) == ["whip", "partner"]
+
+
 def test_fetch_performance_metrics_unwraps_data_key_and_expands_history():
     adapter, _ = make_adapter()
     metrics = adapter.fetch_performance_metrics()
     assert len(metrics) == 2
-    assert metrics[0].content_id == "post1"
-    assert metrics[0].views == 1000
-    assert metrics[1].saves == 40  # bookmarks -> saves
+    assert {m.snapshot_date for m in metrics} == {"2025-03-01", "2025-03-08"}
+    by_date = {m.snapshot_date: m for m in metrics}
+    assert by_date["2025-03-01"].views == 1000
+    assert by_date["2025-03-08"].saves == 40  # bookmarks -> saves
+
+
+def test_fetch_performance_metrics_attaches_earnings_to_latest_snapshot_only():
+    adapter, _ = make_adapter()
+    metrics = adapter.fetch_performance_metrics()
+    by_date = {m.snapshot_date: m for m in metrics}
+    # history is fed in descending order in the fixture, proving this isn't
+    # just "last item in the list" -- it picks the actual latest date.
+    assert by_date["2025-03-08"].revenue == 42.5
+    assert by_date["2025-03-01"].revenue is None
 
 
 def test_since_filters_out_older_records():
