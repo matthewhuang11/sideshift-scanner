@@ -1,51 +1,61 @@
 # SideShift Scanner
 
-An open-source analysis layer on top of [SideShift](https://sideshift.app)
-UGC creator-program data. The point isn't to re-display what SideShift's
-own dashboard already shows you — it's to answer things SideShift
-doesn't: real format-trend detection (from hashtags, not a guess), which
-creator actually fits a new brief and why, and being able to just *ask*
-about your data in plain language through an AI coding agent instead of
-clicking through filters.
+An open-source MCP server on top of [SideShift](https://sideshift.app)
+UGC creator-program data. It syncs your program's creators, posts, and
+performance history into a local SQLite file, then exposes it as MCP
+tools — so you just *talk* to your data through an AI coding agent
+(Claude Code, Claude Desktop, Cowork) instead of clicking through a UI.
+
+The point isn't to re-display what SideShift's own dashboard already
+shows you — it's to answer things it doesn't: real format-trend
+detection (from hashtags, not a guess), which creator actually fits a
+new brief and why, drafted content briefs in a creator's own style.
 
 Full build spec: [docs/build-spec.md](docs/build-spec.md).
 
 Not affiliated with or endorsed by SideShift. This is an independent
 analysis layer built on top of program data you already have access to.
 
+## How it works
+
+Three steps, and the third one is the only one you repeat:
+
+1. **Add your API key** — copy `.env.example` to `.env`, paste in
+   `SIDESHIFT_API_KEY` (from Settings → Integrations in the SideShift
+   dashboard). `.env` is gitignored and auto-loaded, no manual `export`.
+2. **Sync** — pulls your creators/posts/metrics into a local SQLite
+   file (`data/ugc_analytics.db`).
+3. **Ask about it** — connect the MCP server to Claude Code/Desktop
+   once, then just ask questions in normal chat. The model calls the
+   tools itself; there's nothing else to run.
+
 ## Quickstart
 
-Everything below assumes setup is already done (see [Setup](#setup)).
-This is what to run if you're coming back after closing your terminal.
+Assumes [Setup](#setup) is already done. This is what to run if you're
+coming back after closing your terminal.
 
-**Talk to your data through an agent** — this is the core way to use
-this tool, not an afterthought. Wire the MCP server into Claude Code,
-Claude Desktop, or Cowork once:
+**Wire up the agent connection** (one-time):
 
 ```bash
 cp .mcp.json.example .mcp.json   # then edit: fill in the absolute path to .venv/bin/python
 ```
 
-Restart your Claude Code/Desktop session, then just ask, in normal chat:
+Restart your Claude Code/Desktop session so it picks up the new
+project-scoped MCP server, then just ask, in normal chat:
+
+- *"Sync my latest SideShift data"*
 - *"What are my top performing creators this month?"*
 - *"Recommend a creator for a hook-question style unboxing video"*
-- *"Sync my latest data and tell me what's trending"*
 
-No commands to remember — the model calls the tools itself. Details in
-[Run the MCP server](#run-the-mcp-server).
+That's the whole workflow. No dashboard, no separate app to keep open —
+sync and analysis both happen as tool calls inside the conversation.
 
-**Or open the dashboard** for an at-a-glance view:
+**If you'd rather not use an agent**, the CLI does the same things:
 
 ```bash
-cd /path/to/sideshift-scanner && source .venv/bin/activate && python -m ugc_analytics.webapp
+python -m ugc_analytics.cli sync --method api
+python -m ugc_analytics.cli top-performers --metric views -n 5
 ```
-
-Then open <http://127.0.0.1:8420>. It's a plain local process — Ctrl+C
-stops it, running the same command starts it again, nothing else to
-manage. The dashboard stays intentionally minimal (stat cards, trending
-formats, a creator grid); anything more specific — a different metric,
-a date range, filtering unlisted creators — is a chat question away
-once the MCP server's connected, not another button to add.
 
 ## Status
 
@@ -77,8 +87,6 @@ src/ugc_analytics/
     briefs.py                generate_content_brief drafting
   server.py            MCP server wiring the tools below
   cli.py               local CLI (sync, list-creators, top-performers, ...)
-  webapp.py            local read-only web dashboard (FastAPI)
-  static/              dashboard frontend (vanilla HTML/CSS/JS, no build step)
 sample_data/            example CSVs matching the ingestion adapter's expected shape
 tests/                 unit tests for db, ingestion, and analysis
 ```
@@ -106,8 +114,8 @@ pip install -e ".[dev]"
 
 To use the real SideShift API instead of sample data, copy `.env.example`
 to `.env` and fill in `SIDESHIFT_API_KEY` (from Settings -> Integrations
-in the SideShift dashboard). `.env` is gitignored and auto-loaded by the
-CLI, MCP server, and web dashboard — no manual `export` needed.
+in the SideShift dashboard). `.env` is gitignored and auto-loaded by both
+the CLI and the MCP server — no manual `export` needed.
 
 ## Ingest data
 
@@ -119,21 +127,12 @@ python -m ugc_analytics.cli sync --source sample_data
 python -m ugc_analytics.cli sync --method api
 ```
 
-## Run the dashboard
-
-```bash
-python -m ugc_analytics.webapp
+Or just ask an MCP-connected agent to sync it for you (see Quickstart).
+Want it to refresh automatically instead of on request? A local cron
+job calling the same command on a schedule works well:
 ```
-
-Opens a clean local dashboard at http://127.0.0.1:8420 — one page, no
-tabs: stat cards, a live feed of what's being asked through Claude Code/
-Desktop chat ("From your agent chat", polls every 5s), trending
-formats, top performers, and a compact creator list, plus one "Sync
-Data" button. No accounts, no auth: it's a single local SQLite file. Set
-`SIDESHIFT_API_KEY` before starting it to have Sync pull from the real
-API instead of `sample_data/`. Kept deliberately minimal — for a
-different metric, a date range, or filtering out unlisted/ghost-handle
-creators, ask via chat (see Quickstart) instead of hunting for a toggle.
+0 8 * * * cd /path/to/sideshift-scanner && .venv/bin/python -m ugc_analytics.cli sync --method api >> data/sync.log 2>&1
+```
 
 ## Run the MCP server
 

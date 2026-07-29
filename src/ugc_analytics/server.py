@@ -17,7 +17,7 @@ from ugc_analytics.analysis.performance import top_performers as _top_performers
 from ugc_analytics.analysis.profiling import get_creator_profile as _get_creator_profile
 from ugc_analytics.analysis.profiling import list_creators as _list_creators
 from ugc_analytics.analysis.trends import detect_trending_formats as _detect_trending_formats
-from ugc_analytics.db import DEFAULT_DB_PATH, get_connection, init_db, log_activity
+from ugc_analytics.db import DEFAULT_DB_PATH, get_connection, init_db
 from ugc_analytics.ingestion.api_adapter import SideShiftAPIAdapter
 from ugc_analytics.ingestion.base import sync_all
 from ugc_analytics.ingestion.csv_adapter import CSVIngestionAdapter
@@ -62,7 +62,6 @@ def sync_data(method: str = "csv", source: str = "sample_data", since: str | Non
         else:
             raise ValueError(f"Unknown method '{method}'. Use 'csv' or 'api'.")
         result = sync_all(conn, adapter, since_date)
-        log_activity(conn, "sync_data", f"Synced via {method}: {result.content_items_ingested} posts ({result.status})")
         return asdict(result)
     finally:
         conn.close()
@@ -73,10 +72,7 @@ def list_creators(niche: str | None = None, platform: str | None = None, status:
     """List creators, optionally filtered by niche tag, platform, or status."""
     conn = _connect()
     try:
-        result = _list_creators(conn, niche=niche, platform=platform, status=status)
-        filters = ", ".join(f"{k}={v}" for k, v in [("niche", niche), ("platform", platform), ("status", status)] if v)
-        log_activity(conn, "list_creators", f"Listed creators ({filters or 'all'}) -> {len(result)} found")
-        return result
+        return _list_creators(conn, niche=niche, platform=platform, status=status)
     finally:
         conn.close()
 
@@ -87,8 +83,6 @@ def get_creator_profile(creator_id: str | None = None, handle: str | None = None
     conn = _connect()
     try:
         profile = _get_creator_profile(conn, creator_id=creator_id, handle=handle)
-        label = profile.name if profile else (creator_id or handle or "unknown")
-        log_activity(conn, "get_creator_profile", f"Looked up profile: {label}")
         return asdict(profile) if profile else None
     finally:
         conn.close()
@@ -108,10 +102,7 @@ def get_performance_summary(
     date_range = (date_range_start, date_range_end) if date_range_start and date_range_end else None
     conn = _connect()
     try:
-        result = _get_performance_summary(conn, scope=scope, scope_id=scope_id, date_range=date_range)
-        scope_label = f"{scope}:{scope_id}" if scope_id else scope
-        log_activity(conn, "get_performance_summary", f"Performance summary ({scope_label})")
-        return asdict(result)
+        return asdict(_get_performance_summary(conn, scope=scope, scope_id=scope_id, date_range=date_range))
     finally:
         conn.close()
 
@@ -134,9 +125,7 @@ def top_performers(
     date_range = (date_range_start, date_range_end) if date_range_start and date_range_end else None
     conn = _connect()
     try:
-        result = _top_performers(conn, metric=metric, n=n, date_range=date_range, include_unlisted=include_unlisted)
-        log_activity(conn, "top_performers", f"Top performers by {metric} (n={n})")
-        return result
+        return _top_performers(conn, metric=metric, n=n, date_range=date_range, include_unlisted=include_unlisted)
     finally:
         conn.close()
 
@@ -153,7 +142,6 @@ def detect_trending_formats(
     conn = _connect()
     try:
         trends = _detect_trending_formats(conn, metric=metric, min_sample_size=min_sample_size, date_range=date_range)
-        log_activity(conn, "detect_trending_formats", f"Checked trending formats -> {len(trends)} found")
         return [asdict(t) for t in trends]
     finally:
         conn.close()
@@ -166,10 +154,7 @@ def recommend_creators_for_brief(
     """Rank active creators for a brief or set of format tags, with rationale for each match."""
     conn = _connect()
     try:
-        result = _recommend_creators_for_brief(conn, brief_text=brief_text, format_tags=format_tags, n=n)
-        ask = brief_text or ", ".join(format_tags or []) or "unspecified brief"
-        log_activity(conn, "recommend_creators_for_brief", f"Recommended creators for: {ask}")
-        return result
+        return _recommend_creators_for_brief(conn, brief_text=brief_text, format_tags=format_tags, n=n)
     finally:
         conn.close()
 
@@ -179,9 +164,7 @@ def generate_content_brief(creator_id: str, based_on_format: str | None = None) 
     """Draft a brief tailored to a creator's style, targeting a given or trending format."""
     conn = _connect()
     try:
-        brief = _generate_content_brief(conn, creator_id=creator_id, based_on_format=based_on_format)
-        log_activity(conn, "generate_content_brief", f"Drafted brief for {brief.creator_name} ({brief.target_format})")
-        return asdict(brief)
+        return asdict(_generate_content_brief(conn, creator_id=creator_id, based_on_format=based_on_format))
     finally:
         conn.close()
 
