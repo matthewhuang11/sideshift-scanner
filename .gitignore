@@ -6,6 +6,7 @@ venv/
 .pytest_cache/
 data/*.db
 data/*.sqlite
+data/*.log
 .env
 .mcp.json
 .DS_Store
