@@ -7,6 +7,7 @@ import sqlite3
 from dataclasses import asdict
 from pathlib import Path
 
+from dotenv import load_dotenv
 from mcp.server.mcpserver import MCPServer
 
 from ugc_analytics.analysis.briefs import generate_content_brief as _generate_content_brief
@@ -20,6 +21,8 @@ from ugc_analytics.db import DEFAULT_DB_PATH, get_connection, init_db
 from ugc_analytics.ingestion.api_adapter import SideShiftAPIAdapter
 from ugc_analytics.ingestion.base import sync_all
 from ugc_analytics.ingestion.csv_adapter import CSVIngestionAdapter
+
+load_dotenv()
 
 mcp = MCPServer("sideshift-scanner")
 

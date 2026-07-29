@@ -15,6 +15,8 @@ from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from ugc_analytics.analysis.briefs import generate_content_brief
 from ugc_analytics.analysis.performance import get_performance_summary, top_performers
 from ugc_analytics.analysis.profiling import get_creator_profile, list_creators
@@ -23,6 +25,8 @@ from ugc_analytics.db import DEFAULT_DB_PATH, get_connection, init_db
 from ugc_analytics.ingestion.api_adapter import SideShiftAPIAdapter
 from ugc_analytics.ingestion.base import sync_all
 from ugc_analytics.ingestion.csv_adapter import CSVIngestionAdapter
+
+load_dotenv()
 
 
 def _print(obj) -> None:

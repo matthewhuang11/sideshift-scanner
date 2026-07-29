@@ -66,14 +66,19 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
+To use the real SideShift API instead of sample data, copy `.env.example`
+to `.env` and fill in `SIDESHIFT_API_KEY` (from Settings -> Integrations
+in the SideShift dashboard). `.env` is gitignored and auto-loaded by the
+CLI, MCP server, and web dashboard — no manual `export` needed.
+
 ## Ingest data
 
 ```bash
 # zero-setup, against the bundled sample data
 python -m ugc_analytics.cli sync --source sample_data
 
-# against your real SideShift account (Settings -> Integrations for a key)
-python -m ugc_analytics.cli sync --method api --api-key "$SIDESHIFT_API_KEY"
+# against your real SideShift account (reads SIDESHIFT_API_KEY from .env)
+python -m ugc_analytics.cli sync --method api
 ```
 
 ## Run the dashboard
