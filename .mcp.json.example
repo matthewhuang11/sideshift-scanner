@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sideshift-scanner": {
+      "command": "/absolute/path/to/sideshift-scanner/.venv/bin/python",
+      "args": ["-m", "ugc_analytics.server"]
+    }
+  }
+}

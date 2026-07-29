@@ -99,6 +99,14 @@ pull from the real API instead of `sample_data/`.
 python -m ugc_analytics.server
 ```
 
+To use it directly from Claude Code, Claude Desktop, or Cowork instead
+of the CLI, copy `.mcp.json.example` to `.mcp.json` (project-scoped, for
+Claude Code) and fill in the absolute path to your `.venv/bin/python`.
+`.mcp.json` is gitignored since that path is machine-specific. Once
+connected, you can ask things like "who are my top performing creators"
+or "recommend a creator for an unboxing brief" directly in chat — the
+model calls the tools itself.
+
 ## Run tests
 
 ```bash
