@@ -38,9 +38,13 @@ CREATE TABLE IF NOT EXISTS campaigns (
     start_date      TEXT
 );
 
+-- creator_id is intentionally not a foreign key: SideShift attributes some
+-- posts to "ghost handles" or creators no longer returned by GET /creators,
+-- so not every content item has a matching row in creators (confirmed
+-- against a live account, see ingestion/api_adapter.py).
 CREATE TABLE IF NOT EXISTS content_items (
     content_id             TEXT PRIMARY KEY,
-    creator_id             TEXT NOT NULL REFERENCES creators(creator_id),
+    creator_id             TEXT NOT NULL,
     campaign_id            TEXT REFERENCES campaigns(campaign_id),
     platform               TEXT NOT NULL,
     format_tags            TEXT NOT NULL DEFAULT '[]',

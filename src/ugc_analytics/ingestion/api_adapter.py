@@ -7,18 +7,28 @@ https://app.sideshift.app/docs, no login required to view them). Get a
 key from Settings -> Integrations in the SideShift dashboard; it requires
 an active SideShift subscription.
 
-Endpoints used here, per the published spec:
+Endpoints used here:
   GET /creators                    -> Creator
   GET /programs                    -> Campaign
   GET /posts                       -> ContentItem
   GET /posts/{id}/metrics-history  -> PerformanceMetric (daily snapshots)
 
-The API's `/creators` response doesn't expose per-platform handles
-directly (that lives on individual posts as a social-handle string), so
-`platforms`/`handle` are left blank here and can be enriched later once
-a stable per-creator handle field is confirmed. `format_tags` are always
-empty from the API too, matching the build spec's note that style/format
-tagging is derived analysis, not a SideShift field (see analysis/profiling.py).
+Field mapping was corrected against a live account after the published
+docs turned out to disagree with actual responses in three ways:
+  - `uploadedAt`/`createdAt` are Unix **seconds**, not milliseconds as
+    documented; `_epoch_to_date` detects the unit by magnitude so it
+    handles either.
+  - A post's creator/program links (`contractorId`, `programId`) are
+    top-level fields, not nested under `contract`/`program` objects.
+  - `GET /posts/{id}/metrics-history` wraps its payload in a `data` key.
+
+`/creators` doesn't have a `status` field; a creator's contract status
+per program (`campaigns[].contractStatus`) is used instead, and
+per-platform handles come from `campaigns[].handles[]` — richer than
+the docs implied, so `platforms`/`handle` are populated for real rather
+than left blank. `format_tags` stay empty from the API, matching the
+build spec's note that style/format tagging is derived analysis, not a
+SideShift field (see analysis/profiling.py).
 """
 
 from __future__ import annotations
@@ -32,11 +42,16 @@ from ugc_analytics.models import Campaign, ContentItem, Creator, PerformanceMetr
 
 DEFAULT_BASE_URL = "https://app.sideshift.app/api/v1"
 
+# Above this, a value is almost certainly milliseconds; live data has shown
+# both claimed (ms) and actual (seconds) units depending on endpoint/field.
+_MS_THRESHOLD = 1_000_000_000_000
 
-def _ms_to_date(ms: int | None) -> str | None:
-    if not ms:
+
+def _epoch_to_date(value: int | None) -> str | None:
+    if not value:
         return None
-    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).date().isoformat()
+    seconds = value / 1000 if value > _MS_THRESHOLD else value
+    return datetime.fromtimestamp(seconds, tz=timezone.utc).date().isoformat()
 
 
 def _after(date_str: str | None, since: date | None) -> bool:
@@ -94,19 +109,33 @@ class SideShiftAPIAdapter(IngestionAdapter):
         return self._posts_cache
 
     def fetch_creators(self, since: date | None = None) -> list[Creator]:
-        return [
-            Creator(
-                creator_id=str(item["id"]),
-                name=item.get("name") or "",
-                status=item.get("status") or "active",
+        creators = []
+        for item in self._get_paginated("/creators"):
+            platforms: dict[str, str] = {}
+            statuses = []
+            for campaign in item.get("campaigns") or []:
+                if campaign.get("contractStatus"):
+                    statuses.append(campaign["contractStatus"])
+                for h in campaign.get("handles") or []:
+                    platform, handle = h.get("platform"), h.get("handle")
+                    if platform and handle:
+                        platforms.setdefault(platform, handle)
+            status = "active" if "active" in statuses else (statuses[0] if statuses else "active")
+            creators.append(
+                Creator(
+                    creator_id=str(item["id"]),
+                    name=item.get("name") or "",
+                    handle=next(iter(platforms.values()), ""),
+                    platforms=platforms,
+                    status=status,
+                )
             )
-            for item in self._get_paginated("/creators")
-        ]
+        return creators
 
     def fetch_campaigns(self, since: date | None = None) -> list[Campaign]:
         campaigns = []
         for item in self._get_paginated("/programs"):
-            start_date = _ms_to_date(item.get("createdAt"))
+            start_date = _epoch_to_date(item.get("createdAt"))
             if not _after(start_date, since):
                 continue
             campaigns.append(
@@ -122,21 +151,20 @@ class SideShiftAPIAdapter(IngestionAdapter):
     def fetch_content_items(self, since: date | None = None) -> list[ContentItem]:
         items = []
         for item in self._get_posts():
-            post_date = _ms_to_date(item.get("uploadedAt") or item.get("createdAt"))
+            post_date = _epoch_to_date(item.get("uploadedAt") or item.get("createdAt"))
             if not _after(post_date, since):
                 continue
-            contract = item.get("contract") or {}
-            program = item.get("program") or {}
-            creator_id = str(contract.get("contractorId") or item.get("creator") or item["id"])
+            creator_id = str(item.get("contractorId") or item.get("creator") or item["id"])
+            program_id = item.get("programId")
             items.append(
                 ContentItem(
                     content_id=str(item["id"]),
                     creator_id=creator_id,
-                    campaign_id=str(program["id"]) if program.get("id") else None,
+                    campaign_id=str(program_id) if program_id else None,
                     platform=item.get("platform") or "",
                     post_date=post_date,
-                    url=item.get("url") or "",
-                    transcript_or_caption=item.get("description") or item.get("title") or "",
+                    url=item.get("postPage") or item.get("url") or "",
+                    transcript_or_caption=item.get("title") or item.get("description") or "",
                 )
             )
         return items
@@ -149,7 +177,9 @@ class SideShiftAPIAdapter(IngestionAdapter):
                 f"{self.base_url}/posts/{post_id}/metrics-history", headers=self._headers(), timeout=30
             )
             resp.raise_for_status()
-            for snapshot in resp.json().get("history", []):
+            payload = resp.json()
+            body = payload.get("data", payload)
+            for snapshot in body.get("history", []):
                 snap_date = snapshot.get("date")
                 if not _after(snap_date, since):
                     continue

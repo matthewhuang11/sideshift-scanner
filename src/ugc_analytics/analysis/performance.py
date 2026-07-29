@@ -150,11 +150,11 @@ def top_performers(
         raise ValueError(f"Unsupported metric '{metric}'. Choose from {METRIC_COLUMNS}.")
     clause, params = _date_filter_sql(date_range, alias="pm")
     query = f"""
-        SELECT ci.content_id, ci.creator_id, cr.name as creator_name, ci.platform,
+        SELECT ci.content_id, ci.creator_id, COALESCE(cr.name, 'Unknown creator') as creator_name, ci.platform,
                ci.format_tags, pm.{metric} as value, pm.snapshot_date
         FROM performance_metrics pm
         JOIN content_items ci ON ci.content_id = pm.content_id
-        JOIN creators cr ON cr.creator_id = ci.creator_id
+        LEFT JOIN creators cr ON cr.creator_id = ci.creator_id
         WHERE pm.snapshot_date = (
             SELECT MAX(snapshot_date) FROM performance_metrics WHERE content_id = pm.content_id
         )

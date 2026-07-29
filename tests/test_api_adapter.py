@@ -1,9 +1,10 @@
 """Unit tests for SideShiftAPIAdapter against a fake HTTP session.
 
-No live API key is available in this environment, so these tests verify
-the adapter's request/pagination/mapping logic against fixture responses
-shaped like the published OpenAPI spec (app.sideshift.app/docs), not a
-live SideShift account.
+Fixtures are shaped like real responses from a live SideShift account,
+not the published OpenAPI docs — those docs disagree with reality in
+three ways this test suite pins down (see api_adapter.py's module
+docstring): epoch units, top-level vs. nested contractorId/programId,
+and metrics-history's wrapping "data" key.
 """
 
 from __future__ import annotations
@@ -43,7 +44,24 @@ class FakeSession:
 
 
 CREATORS_PAGE = {
-    "data": [{"id": "cr1", "name": "Ava Chen", "status": "active"}],
+    "data": [
+        {
+            "id": "cr1",
+            "name": "Ava Chen",
+            "campaigns": [
+                {
+                    "programId": "p1",
+                    "programName": "Spring Push",
+                    "contractId": "contract-1",
+                    "contractStatus": "active",
+                    "handles": [
+                        {"platform": "tiktok", "handle": "avachen"},
+                        {"platform": "instagram", "handle": "ava.chen"},
+                    ],
+                }
+            ],
+        }
+    ],
     "page": 1,
     "total": 1,
     "totalPages": 1,
@@ -56,8 +74,7 @@ PROGRAMS_PAGE = {
             "name": "Spring Push",
             "description": "Unbox the new kit",
             "status": "active",
-            "createdAt": 1700000000000,
-            "updatedAt": 1700000000000,
+            "createdAt": 1700000000,  # Unix seconds, not ms
         }
     ],
     "page": 1,
@@ -70,13 +87,12 @@ POSTS_PAGE = {
         {
             "id": "post1",
             "title": "Unboxing",
-            "description": "wait for it",
             "platform": "tiktok",
-            "url": "https://tiktok.com/post1",
-            "uploadedAt": 1700000000000,
-            "createdAt": 1700000000000,
-            "contract": {"contractorId": "cr1"},
-            "program": {"id": "p1"},
+            "postPage": "https://tiktok.com/post1",
+            "uploadedAt": 1700000000,  # Unix seconds, not ms
+            "creator": "avachen",
+            "contractorId": "cr1",  # top-level, not nested under "contract"
+            "programId": "p1",  # top-level, not nested under "program"
         }
     ],
     "page": 1,
@@ -84,14 +100,17 @@ POSTS_PAGE = {
     "totalPages": 1,
 }
 
+# /posts/{id}/metrics-history wraps its payload in a top-level "data" key.
 METRICS_HISTORY = {
-    "postId": "post1",
-    "history": [
-        {"date": "2025-03-01", "views": 1000, "likes": 100, "comments": 10, "shares": 5, "bookmarks": 20},
-        {"date": "2025-03-08", "views": 2000, "likes": 200, "comments": 20, "shares": 10, "bookmarks": 40},
-    ],
-    "totalDataPoints": 2,
-    "periodDays": 7,
+    "data": {
+        "postId": "post1",
+        "history": [
+            {"date": "2025-03-01", "views": 1000, "likes": 100, "comments": 10, "shares": 5, "bookmarks": 20},
+            {"date": "2025-03-08", "views": 2000, "likes": 200, "comments": 20, "shares": 10, "bookmarks": 40},
+        ],
+        "totalDataPoints": 2,
+        "periodDays": 7,
+    }
 }
 
 
@@ -116,24 +135,32 @@ def test_fetch_creators_maps_fields():
     assert creators[0].status == "active"
 
 
+def test_fetch_creators_derives_platforms_from_campaign_handles():
+    adapter, _ = make_adapter()
+    creators = adapter.fetch_creators()
+    assert creators[0].platforms == {"tiktok": "avachen", "instagram": "ava.chen"}
+    assert creators[0].handle == "avachen"
+
+
 def test_fetch_campaigns_maps_fields_and_dates():
     adapter, _ = make_adapter()
     campaigns = adapter.fetch_campaigns()
     assert campaigns[0].campaign_id == "p1"
     assert campaigns[0].brief_text == "Unbox the new kit"
-    assert campaigns[0].start_date == "2023-11-14"  # 1700000000000ms
+    assert campaigns[0].start_date == "2023-11-14"  # 1700000000s
 
 
-def test_fetch_content_items_pulls_creator_id_from_contract():
+def test_fetch_content_items_pulls_creator_id_from_top_level_contractor_id():
     adapter, _ = make_adapter()
     items = adapter.fetch_content_items()
     assert items[0].content_id == "post1"
     assert items[0].creator_id == "cr1"
     assert items[0].campaign_id == "p1"
     assert items[0].platform == "tiktok"
+    assert items[0].url == "https://tiktok.com/post1"
 
 
-def test_fetch_performance_metrics_expands_history_to_snapshots():
+def test_fetch_performance_metrics_unwraps_data_key_and_expands_history():
     adapter, _ = make_adapter()
     metrics = adapter.fetch_performance_metrics()
     assert len(metrics) == 2
@@ -159,13 +186,13 @@ def test_posts_are_only_fetched_once_across_calls():
 
 def test_pagination_stops_when_page_reaches_total_pages():
     two_pages = {
-        "data": [{"id": f"cr{i}", "name": f"Creator {i}", "status": "active"} for i in range(1)],
+        "data": [{"id": "cr0", "name": "Creator 0"}],
         "page": 1,
         "total": 2,
         "totalPages": 2,
     }
     last_page = {
-        "data": [{"id": "cr2", "name": "Creator 2", "status": "active"}],
+        "data": [{"id": "cr2", "name": "Creator 2"}],
         "page": 2,
         "total": 2,
         "totalPages": 2,
@@ -174,3 +201,22 @@ def test_pagination_stops_when_page_reaches_total_pages():
     adapter = SideShiftAPIAdapter(api_key="k", session=session)
     creators = adapter.fetch_creators()
     assert [c.creator_id for c in creators] == ["cr0", "cr2"]
+
+
+def test_epoch_to_date_handles_milliseconds_too():
+    """The published docs claim ms; live data is actually seconds. Handle both."""
+    ms_session = FakeSession(
+        {
+            "/programs": [
+                {
+                    "data": [{"id": "p1", "name": "X", "createdAt": 1700000000000}],  # ms
+                    "page": 1,
+                    "total": 1,
+                    "totalPages": 1,
+                }
+            ]
+        }
+    )
+    adapter = SideShiftAPIAdapter(api_key="k", session=ms_session)
+    campaigns = adapter.fetch_campaigns()
+    assert campaigns[0].start_date == "2023-11-14"
