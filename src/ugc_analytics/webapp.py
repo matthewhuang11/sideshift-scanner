@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from ugc_analytics.analysis.performance import get_performance_summary, top_performers
 from ugc_analytics.analysis.profiling import get_creator_profile, list_creators
 from ugc_analytics.analysis.trends import detect_trending_formats
-from ugc_analytics.db import DEFAULT_DB_PATH, get_connection, init_db
+from ugc_analytics.db import DEFAULT_DB_PATH, get_connection, init_db, recent_activity
 from ugc_analytics.ingestion.api_adapter import SideShiftAPIAdapter
 from ugc_analytics.ingestion.base import sync_all
 from ugc_analytics.ingestion.csv_adapter import CSVIngestionAdapter
@@ -106,6 +106,17 @@ def api_top_performers(metric: str = "views", n: int = 10, include_unlisted: boo
         return top_performers(conn, metric=metric, n=n, include_unlisted=include_unlisted)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        conn.close()
+
+
+@app.get("/api/activity")
+def api_activity(limit: int = 10) -> list[dict]:
+    """Recent MCP tool calls -- what's actually been asked through chat, not the
+    dashboard's own Sync button or CLI use (those aren't logged here on purpose)."""
+    conn = _connect()
+    try:
+        return recent_activity(conn, limit=limit)
     finally:
         conn.close()
 

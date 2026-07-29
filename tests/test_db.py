@@ -1,4 +1,4 @@
-from ugc_analytics.db import row_to_creator, upsert_creator
+from ugc_analytics.db import log_activity, recent_activity, row_to_creator, upsert_creator
 from ugc_analytics.models import Creator
 
 
@@ -7,7 +7,31 @@ def test_init_db_creates_tables(conn):
         row["name"]
         for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     }
-    assert {"creators", "campaigns", "content_items", "performance_metrics", "sync_log"} <= tables
+    assert {
+        "creators",
+        "campaigns",
+        "content_items",
+        "performance_metrics",
+        "sync_log",
+        "agent_activity",
+    } <= tables
+
+
+def test_recent_activity_returns_newest_first(conn):
+    log_activity(conn, "list_creators", "Listed creators (all) -> 3 found")
+    log_activity(conn, "top_performers", "Top performers by views (n=5)")
+    conn.commit()
+
+    entries = recent_activity(conn)
+    assert [e["tool_name"] for e in entries] == ["top_performers", "list_creators"]
+    assert entries[0]["summary"] == "Top performers by views (n=5)"
+
+
+def test_recent_activity_respects_limit(conn):
+    for i in range(5):
+        log_activity(conn, "sync_data", f"Synced via api: {i} posts (ok)")
+    conn.commit()
+    assert len(recent_activity(conn, limit=2)) == 2
 
 
 def test_upsert_creator_roundtrip(conn):

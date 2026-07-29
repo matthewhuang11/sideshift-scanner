@@ -83,6 +83,16 @@ CREATE TABLE IF NOT EXISTS sync_log (
     status         TEXT NOT NULL,
     detail         TEXT DEFAULT ''
 );
+
+-- Logged by every MCP tool call (server.py) so the dashboard can show a
+-- live feed of what's actually being asked through chat, instead of only
+-- being a static snapshot.
+CREATE TABLE IF NOT EXISTS agent_activity (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp    TEXT NOT NULL,
+    tool_name    TEXT NOT NULL,
+    summary      TEXT NOT NULL
+);
 """
 
 
@@ -197,6 +207,21 @@ def log_sync(conn: sqlite3.Connection, method: str, rows_ingested: int, status: 
         "INSERT INTO sync_log (timestamp, method, rows_ingested, status, detail) VALUES (?, ?, ?, ?, ?)",
         (datetime.now(timezone.utc).isoformat(), method, rows_ingested, status, detail),
     )
+
+
+def log_activity(conn: sqlite3.Connection, tool_name: str, summary: str) -> None:
+    conn.execute(
+        "INSERT INTO agent_activity (timestamp, tool_name, summary) VALUES (?, ?, ?)",
+        (datetime.now(timezone.utc).isoformat(), tool_name, summary),
+    )
+    conn.commit()
+
+
+def recent_activity(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
+    rows = conn.execute(
+        "SELECT timestamp, tool_name, summary FROM agent_activity ORDER BY id DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def row_to_creator(row: sqlite3.Row) -> Creator:
