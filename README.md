@@ -125,9 +125,11 @@ python -m ugc_analytics.cli sync --method api
 python -m ugc_analytics.webapp
 ```
 
-Opens a clean local dashboard at http://127.0.0.1:8420 — stat cards, a
-creator grid, and trending formats, with one "Sync Data" button. No
-accounts, no auth: it's a single local SQLite file. Set
+Opens a clean local dashboard at http://127.0.0.1:8420 — one page, no
+tabs: stat cards, a live feed of what's being asked through Claude Code/
+Desktop chat ("From your agent chat", polls every 5s), trending
+formats, top performers, and a compact creator list, plus one "Sync
+Data" button. No accounts, no auth: it's a single local SQLite file. Set
 `SIDESHIFT_API_KEY` before starting it to have Sync pull from the real
 API instead of `sample_data/`. Kept deliberately minimal — for a
 different metric, a date range, or filtering out unlisted/ghost-handle
@@ -165,9 +167,6 @@ where no payouts have run yet.)
 
 ## Ideas not built yet
 
-- Dashboard reflecting recent agent activity (e.g. showing what was
-  just asked/synced via Claude Code chat) instead of only being a
-  static snapshot — floated, not implemented.
 - Real content-style classification from captions/titles beyond
   hashtag extraction (e.g. an LLM tagging pass for tone/hook style).
 
