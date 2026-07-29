@@ -3,7 +3,6 @@ const titles = {
   dashboard: "Dashboard",
   creators: "Creators",
   trending: "Trending Formats",
-  "top-performers": "Top Performers",
 };
 
 async function fetchJSON(url, opts) {
@@ -130,33 +129,11 @@ async function loadTrending() {
       .join("") || empty("Not enough data yet — hit Sync.");
 }
 
-async function loadTopPerformers() {
-  const metric = document.getElementById("metric-select").value;
-  const top = await fetchJSON(`/api/top-performers?metric=${metric}&n=20`);
-  const format = metric === "engagement_rate" ? fmtPct : fmtNum;
-  const list = document.getElementById("top-performers-full-list");
-  list.innerHTML =
-    top
-      .map(
-        (row, i) => `
-    <div class="row">
-      <span class="rank">${i + 1}</span>
-      <div>
-        <div class="row-title">${row.creator_name}</div>
-        <div class="muted small">${row.platform} &middot; ${safeTags(row.format_tags).join(", ")}</div>
-      </div>
-      <span class="row-value">${format(row.value)}</span>
-    </div>`
-      )
-      .join("") || empty("No content yet.");
-}
-
 async function refresh() {
   try {
     if (state.view === "dashboard") await loadDashboard();
     if (state.view === "creators") await loadCreators();
     if (state.view === "trending") await loadTrending();
-    if (state.view === "top-performers") await loadTopPerformers();
   } catch (err) {
     console.error(err);
   }
@@ -190,6 +167,5 @@ async function sync() {
 
 document.querySelectorAll(".nav-item").forEach((el) => el.addEventListener("click", () => showView(el.dataset.view)));
 document.getElementById("sync-btn").addEventListener("click", sync);
-document.getElementById("metric-select")?.addEventListener("change", loadTopPerformers);
 
 showView("dashboard");

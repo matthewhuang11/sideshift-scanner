@@ -145,20 +145,31 @@ def top_performers(
     metric: str = "views",
     n: int = 10,
     date_range: tuple[str, str] | None = None,
+    include_unlisted: bool = True,
 ) -> list[dict]:
+    """include_unlisted controls whether content from creators with no
+    matching row in `creators` is included. SideShift attributes some
+    posts to "ghost handles" or accounts no longer returned by its
+    /creators endpoint (that's excluded there by design, not something
+    this tool can fetch around) -- those still show up here with a
+    synthesized label unless toggled off.
+    """
     if metric not in METRIC_COLUMNS:
         raise ValueError(f"Unsupported metric '{metric}'. Choose from {METRIC_COLUMNS}.")
     clause, params = _date_filter_sql(date_range, alias="pm")
+    unlisted_clause = "" if include_unlisted else " AND cr.creator_id IS NOT NULL"
     query = f"""
-        SELECT ci.content_id, ci.creator_id, COALESCE(cr.name, 'Unknown creator') as creator_name, ci.platform,
-               ci.format_tags, pm.{metric} as value, pm.snapshot_date
+        SELECT ci.content_id, ci.creator_id,
+               COALESCE(cr.name, 'Unlisted creator (' || ci.creator_id || ')') as creator_name,
+               (cr.creator_id IS NULL) as is_unlisted,
+               ci.platform, ci.format_tags, pm.{metric} as value, pm.snapshot_date
         FROM performance_metrics pm
         JOIN content_items ci ON ci.content_id = pm.content_id
         LEFT JOIN creators cr ON cr.creator_id = ci.creator_id
         WHERE pm.snapshot_date = (
             SELECT MAX(snapshot_date) FROM performance_metrics WHERE content_id = pm.content_id
         )
-        {clause}
+        {clause}{unlisted_clause}
         ORDER BY value DESC
         LIMIT ?
     """

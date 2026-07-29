@@ -2,6 +2,8 @@ from ugc_analytics.analysis.matching import recommend_creators_for_brief
 from ugc_analytics.analysis.performance import get_performance_summary, top_performers
 from ugc_analytics.analysis.profiling import get_creator_profile, list_creators
 from ugc_analytics.analysis.trends import detect_trending_formats
+from ugc_analytics.db import upsert_content_item, upsert_performance_metric
+from ugc_analytics.models import ContentItem, PerformanceMetric
 
 
 def test_list_creators_filters_by_niche(seeded_conn):
@@ -42,6 +44,28 @@ def test_top_performers_ranked_desc(seeded_conn):
     values = [row["value"] for row in top]
     assert values == sorted(values, reverse=True)
     assert top[0]["content_id"] == "ct8"
+
+
+def test_top_performers_include_unlisted_toggle(seeded_conn):
+    # content from a creator not in the creators table (e.g. a SideShift
+    # ghost handle) -- no FK enforced on purpose, see db.py.
+    upsert_content_item(
+        seeded_conn,
+        ContentItem(content_id="ghost1", creator_id="ghost-xyz", platform="tiktok", format_tags=["viral"]),
+    )
+    upsert_performance_metric(
+        seeded_conn, PerformanceMetric(content_id="ghost1", snapshot_date="2025-07-01", views=999999)
+    )
+    seeded_conn.commit()
+
+    included = top_performers(seeded_conn, metric="views", n=20, include_unlisted=True)
+    assert any(r["content_id"] == "ghost1" for r in included)
+    ghost_row = next(r for r in included if r["content_id"] == "ghost1")
+    assert ghost_row["is_unlisted"]
+    assert "ghost-xyz" in ghost_row["creator_name"]
+
+    excluded = top_performers(seeded_conn, metric="views", n=20, include_unlisted=False)
+    assert all(r["content_id"] != "ghost1" for r in excluded)
 
 
 def test_top_performers_rejects_unknown_metric(seeded_conn):

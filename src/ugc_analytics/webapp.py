@@ -100,10 +100,10 @@ def api_trending() -> list[dict]:
 
 
 @app.get("/api/top-performers")
-def api_top_performers(metric: str = "views", n: int = 10) -> list[dict]:
+def api_top_performers(metric: str = "views", n: int = 10, include_unlisted: bool = True) -> list[dict]:
     conn = _connect()
     try:
-        return top_performers(conn, metric=metric, n=n)
+        return top_performers(conn, metric=metric, n=n, include_unlisted=include_unlisted)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:

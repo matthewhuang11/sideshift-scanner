@@ -113,12 +113,19 @@ def top_performers(
     n: int = 10,
     date_range_start: str | None = None,
     date_range_end: str | None = None,
+    include_unlisted: bool = True,
 ) -> list[dict]:
-    """Ranked content items by a chosen metric (views/likes/comments/shares/saves/conversions/revenue/engagement_rate)."""
+    """Ranked content items by a chosen metric (views/likes/comments/shares/saves/conversions/revenue/engagement_rate).
+
+    include_unlisted: whether to include content from creators no longer
+    returned by SideShift's /creators (ghost handles or removed accounts
+    -- SideShift excludes those by design, so this tool can't fetch more
+    about who they are, just show or hide their content).
+    """
     date_range = (date_range_start, date_range_end) if date_range_start and date_range_end else None
     conn = _connect()
     try:
-        return _top_performers(conn, metric=metric, n=n, date_range=date_range)
+        return _top_performers(conn, metric=metric, n=n, date_range=date_range, include_unlisted=include_unlisted)
     finally:
         conn.close()
 

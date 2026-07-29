@@ -64,6 +64,11 @@ def main(argv: list[str] | None = None) -> int:
     top_p = sub.add_parser("top-performers")
     top_p.add_argument("--metric", default="views")
     top_p.add_argument("-n", type=int, default=10)
+    top_p.add_argument(
+        "--exclude-unlisted",
+        action="store_true",
+        help="Hide content from creators no longer returned by SideShift's /creators (ghost handles/removed accounts)",
+    )
 
     sub.add_parser("trending-formats")
 
@@ -96,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "performance-summary":
         _print(get_performance_summary(conn, scope=args.scope, scope_id=args.scope_id))
     elif args.command == "top-performers":
-        _print(top_performers(conn, metric=args.metric, n=args.n))
+        _print(top_performers(conn, metric=args.metric, n=args.n, include_unlisted=not args.exclude_unlisted))
     elif args.command == "trending-formats":
         _print(detect_trending_formats(conn))
     elif args.command == "content-brief":

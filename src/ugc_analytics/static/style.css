@@ -304,6 +304,15 @@ select {
   background: var(--card);
 }
 
+.ask-banner {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .empty {
   color: var(--muted);
   font-size: 13px;
