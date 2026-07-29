@@ -1,9 +1,4 @@
-const state = { view: "dashboard" };
-const titles = {
-  dashboard: "Dashboard",
-  creators: "Creators",
-  trending: "Trending Formats",
-};
+const ACTIVITY_POLL_MS = 5000;
 
 async function fetchJSON(url, opts) {
   const res = await fetch(url, opts);
@@ -21,6 +16,14 @@ function fmtNum(n) {
 function fmtPct(n) {
   if (n === null || n === undefined) return "—";
   return (n * 100).toFixed(1) + "%";
+}
+
+function timeAgo(isoString) {
+  const seconds = Math.max(0, (Date.now() - new Date(isoString).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 function trendBadge(direction, pct) {
@@ -43,24 +46,22 @@ function empty(msg) {
   return `<div class="empty">${msg}</div>`;
 }
 
-async function loadDashboard() {
-  const [summary, trending, top] = await Promise.all([
-    fetchJSON("/api/summary"),
-    fetchJSON("/api/trending"),
-    fetchJSON("/api/top-performers?n=5"),
-  ]);
-
+async function loadSummary() {
+  const summary = await fetchJSON("/api/summary");
   document.getElementById("stat-creators").textContent = summary.creator_count ?? 0;
   document.getElementById("stat-active").textContent = `${summary.active_creator_count ?? 0} active`;
   document.getElementById("stat-views").textContent = fmtNum(summary.totals?.views);
   document.getElementById("stat-trend").innerHTML = trendBadge(summary.trend_direction, summary.trend_pct);
   document.getElementById("stat-engagement").textContent = fmtPct(summary.averages?.engagement_rate);
   document.getElementById("stat-content").textContent = summary.sample_size ?? 0;
+}
 
-  const trendList = document.getElementById("trending-list");
-  trendList.innerHTML =
+async function loadTrending() {
+  const trending = await fetchJSON("/api/trending");
+  const list = document.getElementById("trending-list");
+  list.innerHTML =
     trending
-      .slice(0, 6)
+      .slice(0, 8)
       .map(
         (t) => `
       <div class="row">
@@ -70,9 +71,12 @@ async function loadDashboard() {
       </div>`
       )
       .join("") || empty("Not enough data yet — hit Sync.");
+}
 
-  const topList = document.getElementById("top-performers-list");
-  topList.innerHTML =
+async function loadTopPerformers() {
+  const top = await fetchJSON("/api/top-performers?n=6");
+  const list = document.getElementById("top-performers-list");
+  list.innerHTML =
     top
       .map(
         (row) => `
@@ -89,62 +93,47 @@ async function loadDashboard() {
 
 async function loadCreators() {
   const creators = await fetchJSON("/api/creators");
-  const grid = document.getElementById("creators-grid");
-  grid.innerHTML =
+  const list = document.getElementById("creators-list");
+  list.innerHTML =
     creators
       .map(
         (c) => `
-    <div class="card creator-card">
-      <div class="creator-card-header">
-        <div>
-          <div class="row-title">${c.name}</div>
-          <div class="muted small">${c.handle || ""}</div>
-        </div>
-        <span class="badge badge-${c.status}">${c.status}</span>
+    <div class="row creator-row">
+      <div class="creator-row-main">
+        <span class="row-title">${c.name}</span>
+        <span class="muted small">${c.handle ? "@" + c.handle : ""}</span>
       </div>
       <div class="tag-row">${(c.niche_tags || []).map((t) => `<span class="tag">${t}</span>`).join("")}</div>
-      <div class="creator-stats">
-        <div><span class="muted small">Posts</span><br>${c.content_count}</div>
-        <div><span class="muted small">Avg Eng.</span><br>${fmtPct(c.avg_engagement_rate)}</div>
-        <div><span class="muted small">Trend</span><br>${trendBadge(c.trend_direction, c.trend_pct)}</div>
-      </div>
+      <span class="badge badge-${c.status}">${c.status}</span>
+      <span class="muted small">${c.content_count} posts</span>
+      ${trendBadge(c.trend_direction, c.trend_pct)}
     </div>`
       )
       .join("") || empty("No creators yet — hit Sync.");
 }
 
-async function loadTrending() {
-  const trending = await fetchJSON("/api/trending");
-  const list = document.getElementById("trending-full-list");
+async function loadActivity() {
+  const entries = await fetchJSON("/api/activity?limit=8");
+  const list = document.getElementById("activity-list");
   list.innerHTML =
-    trending
+    entries
       .map(
-        (t) => `
+        (e) => `
     <div class="row">
-      <span class="tag">${t.format_tag}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.min(t.multiplier * 40, 100)}%"></div></div>
-      <span class="muted small">${t.multiplier}x baseline &middot; n=${t.sample_size}</span>
+      <span class="muted small activity-time">${timeAgo(e.timestamp)}</span>
+      <span>${e.summary}</span>
     </div>`
       )
-      .join("") || empty("Not enough data yet — hit Sync.");
+      .join("") ||
+    empty('Nothing yet — ask something about your data in Claude Code/Desktop chat and it\'ll show up here.');
 }
 
 async function refresh() {
   try {
-    if (state.view === "dashboard") await loadDashboard();
-    if (state.view === "creators") await loadCreators();
-    if (state.view === "trending") await loadTrending();
+    await Promise.all([loadSummary(), loadTrending(), loadTopPerformers(), loadCreators()]);
   } catch (err) {
     console.error(err);
   }
-}
-
-function showView(view) {
-  state.view = view;
-  document.getElementById("page-title").textContent = titles[view];
-  document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.dataset.view !== view));
-  document.querySelectorAll(".nav-item").forEach((el) => el.classList.toggle("active", el.dataset.view === view));
-  refresh();
 }
 
 async function sync() {
@@ -165,7 +154,8 @@ async function sync() {
   }
 }
 
-document.querySelectorAll(".nav-item").forEach((el) => el.addEventListener("click", () => showView(el.dataset.view)));
 document.getElementById("sync-btn").addEventListener("click", sync);
 
-showView("dashboard");
+refresh();
+loadActivity();
+setInterval(loadActivity, ACTIVITY_POLL_MS);
