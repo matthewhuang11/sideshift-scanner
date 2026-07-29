@@ -1,13 +1,51 @@
 # SideShift Scanner
 
-An open-source MCP server for pulling UGC creator-program data out of
-[SideShift](https://sideshift.app), profiling creators, tracking content
-performance, and recommending creators for a given brief or format.
+An open-source analysis layer on top of [SideShift](https://sideshift.app)
+UGC creator-program data. The point isn't to re-display what SideShift's
+own dashboard already shows you — it's to answer things SideShift
+doesn't: real format-trend detection (from hashtags, not a guess), which
+creator actually fits a new brief and why, and being able to just *ask*
+about your data in plain language through an AI coding agent instead of
+clicking through filters.
 
 Full build spec: [docs/build-spec.md](docs/build-spec.md).
 
 Not affiliated with or endorsed by SideShift. This is an independent
 analysis layer built on top of program data you already have access to.
+
+## Quickstart
+
+Everything below assumes setup is already done (see [Setup](#setup)).
+This is what to run if you're coming back after closing your terminal.
+
+**Talk to your data through an agent** — this is the core way to use
+this tool, not an afterthought. Wire the MCP server into Claude Code,
+Claude Desktop, or Cowork once:
+
+```bash
+cp .mcp.json.example .mcp.json   # then edit: fill in the absolute path to .venv/bin/python
+```
+
+Restart your Claude Code/Desktop session, then just ask, in normal chat:
+- *"What are my top performing creators this month?"*
+- *"Recommend a creator for a hook-question style unboxing video"*
+- *"Sync my latest data and tell me what's trending"*
+
+No commands to remember — the model calls the tools itself. Details in
+[Run the MCP server](#run-the-mcp-server).
+
+**Or open the dashboard** for an at-a-glance view:
+
+```bash
+cd /path/to/sideshift-scanner && source .venv/bin/activate && python -m ugc_analytics.webapp
+```
+
+Then open <http://127.0.0.1:8420>. It's a plain local process — Ctrl+C
+stops it, running the same command starts it again, nothing else to
+manage. The dashboard stays intentionally minimal (stat cards, trending
+formats, a creator grid); anything more specific — a different metric,
+a date range, filtering unlisted creators — is a chat question away
+once the MCP server's connected, not another button to add.
 
 ## Status
 
@@ -53,7 +91,7 @@ tests/                 unit tests for db, ingestion, and analysis
 | `list_creators` | Filter creators by niche / platform / status |
 | `get_creator_profile` | Full profile: niche, style, platforms, performance history, best formats |
 | `get_performance_summary` | Aggregate metrics + trend direction, scoped to creator/campaign/format/global |
-| `top_performers` | Ranked list by a chosen metric |
+| `top_performers` | Ranked list by a chosen metric; `include_unlisted` toggles ghost-handle/removed-creator content |
 | `detect_trending_formats` | Format/hook clusters outperforming the roster baseline |
 | `recommend_creators_for_brief` | Ranked creators for a brief/format, with rationale |
 | `generate_content_brief` | Draft a brief in a creator's own style, targeting a given or trending format |
@@ -88,10 +126,12 @@ python -m ugc_analytics.webapp
 ```
 
 Opens a clean local dashboard at http://127.0.0.1:8420 — stat cards, a
-creator grid, trending formats, and a ranked top-performers view, with
-one "Sync Data" button. No accounts, no auth: it's a single local
-SQLite file. Set `SIDESHIFT_API_KEY` before starting it to have Sync
-pull from the real API instead of `sample_data/`.
+creator grid, and trending formats, with one "Sync Data" button. No
+accounts, no auth: it's a single local SQLite file. Set
+`SIDESHIFT_API_KEY` before starting it to have Sync pull from the real
+API instead of `sample_data/`. Kept deliberately minimal — for a
+different metric, a date range, or filtering out unlisted/ghost-handle
+creators, ask via chat (see Quickstart) instead of hunting for a toggle.
 
 ## Run the MCP server
 
@@ -115,9 +155,21 @@ pytest
 
 ## Open questions (from the spec)
 
-- Does SideShift expose conversion/revenue attribution per creator, or only engagement metrics? (the public API's Post schema has `earnings`/`paid`, but no per-day revenue snapshot)
 - Roster-only, or also profiling applicants who haven't posted yet?
 - Single-user (local SQLite) or shared/hosted (Postgres)?
+
+(Resolved: SideShift's Post schema does carry `earnings` — ingested as
+`revenue` on each post's latest metrics snapshot. It's a running total,
+not a per-day breakdown, and reads null across the board on accounts
+where no payouts have run yet.)
+
+## Ideas not built yet
+
+- Dashboard reflecting recent agent activity (e.g. showing what was
+  just asked/synced via Claude Code chat) instead of only being a
+  static snapshot — floated, not implemented.
+- Real content-style classification from captions/titles beyond
+  hashtag extraction (e.g. an LLM tagging pass for tone/hook style).
 
 ## Contributing
 
