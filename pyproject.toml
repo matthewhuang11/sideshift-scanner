@@ -1,8 +1,9 @@
 [project]
-name = "ugc-analytics"
+name = "sideshift-scanner"
 version = "0.1.0"
-description = "MCP server for SideShift UGC creator analytics"
+description = "Open-source MCP server for SideShift UGC creator analytics"
 requires-python = ">=3.10"
+license = { text = "MIT" }
 dependencies = [
     "mcp[cli]>=1.2.0",
 ]

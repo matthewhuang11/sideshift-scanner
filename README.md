@@ -1,10 +1,13 @@
-# Whip UGC Analytics
+# SideShift Scanner
 
-MCP server for pulling UGC creator-program data out of SideShift, profiling
-creators, tracking content performance, and recommending creators for a
-given brief or format.
+An open-source MCP server for pulling UGC creator-program data out of
+[SideShift](https://sideshift.app), profiling creators, tracking content
+performance, and recommending creators for a given brief or format.
 
 Full build spec: [docs/build-spec.md](docs/build-spec.md).
+
+Not affiliated with or endorsed by SideShift. This is an independent
+analysis layer built on top of program data you already have access to.
 
 ## Status
 
@@ -81,3 +84,13 @@ pytest
 - Does SideShift expose conversion/revenue attribution per creator, or only engagement metrics?
 - Roster-only, or also profiling applicants who haven't posted yet?
 - Single-user (local SQLite) or shared/hosted (Postgres)?
+
+## Contributing
+
+Issues and PRs welcome — especially confirmation of a real SideShift
+API/export path (see `docs/build-spec.md` section 4) so `ingestion/api_adapter.py`
+can be filled in for real.
+
+## License
+
+[MIT](LICENSE)
