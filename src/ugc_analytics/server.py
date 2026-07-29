@@ -9,6 +9,7 @@ from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 
+from ugc_analytics.analysis.briefs import generate_content_brief as _generate_content_brief
 from ugc_analytics.analysis.matching import recommend_creators_for_brief as _recommend_creators_for_brief
 from ugc_analytics.analysis.performance import get_performance_summary as _get_performance_summary
 from ugc_analytics.analysis.performance import top_performers as _top_performers
@@ -16,6 +17,7 @@ from ugc_analytics.analysis.profiling import get_creator_profile as _get_creator
 from ugc_analytics.analysis.profiling import list_creators as _list_creators
 from ugc_analytics.analysis.trends import detect_trending_formats as _detect_trending_formats
 from ugc_analytics.db import DEFAULT_DB_PATH, get_connection, init_db
+from ugc_analytics.ingestion.api_adapter import SideShiftAPIAdapter
 from ugc_analytics.ingestion.base import sync_all
 from ugc_analytics.ingestion.csv_adapter import CSVIngestionAdapter
 
@@ -33,11 +35,13 @@ def _connect() -> sqlite3.Connection:
 
 
 @mcp.tool()
-def sync_data(source: str = "sample_data", since: str | None = None) -> dict:
-    """Pull latest data via the CSV ingestion adapter and upsert into the local store.
+def sync_data(method: str = "csv", source: str = "sample_data", since: str | None = None) -> dict:
+    """Pull latest data via the active ingestion adapter and upsert into the local store.
 
-    `source` is a directory containing creators.csv / campaigns.csv /
-    content_items.csv / performance_metrics.csv (see sample_data/).
+    method='csv': `source` is a directory containing creators.csv / campaigns.csv /
+      content_items.csv / performance_metrics.csv (see sample_data/).
+    method='api': pulls from the real SideShift API. Requires the SIDESHIFT_API_KEY
+      env var (Settings -> Integrations in the SideShift dashboard).
     `since` (YYYY-MM-DD) limits ingestion to records on/after that date.
     """
     from datetime import date
@@ -45,7 +49,15 @@ def sync_data(source: str = "sample_data", since: str | None = None) -> dict:
     since_date = date.fromisoformat(since) if since else None
     conn = _connect()
     try:
-        adapter = CSVIngestionAdapter(source)
+        if method == "csv":
+            adapter = CSVIngestionAdapter(source)
+        elif method == "api":
+            api_key = os.environ.get("SIDESHIFT_API_KEY")
+            if not api_key:
+                raise ValueError("SIDESHIFT_API_KEY env var is required for method='api'.")
+            adapter = SideShiftAPIAdapter(api_key=api_key)
+        else:
+            raise ValueError(f"Unknown method '{method}'. Use 'csv' or 'api'.")
         result = sync_all(conn, adapter, since_date)
         return asdict(result)
     finally:
@@ -133,6 +145,16 @@ def recommend_creators_for_brief(
     conn = _connect()
     try:
         return _recommend_creators_for_brief(conn, brief_text=brief_text, format_tags=format_tags, n=n)
+    finally:
+        conn.close()
+
+
+@mcp.tool()
+def generate_content_brief(creator_id: str, based_on_format: str | None = None) -> dict:
+    """Draft a brief tailored to a creator's style, targeting a given or trending format."""
+    conn = _connect()
+    try:
+        return asdict(_generate_content_brief(conn, creator_id=creator_id, based_on_format=based_on_format))
     finally:
         conn.close()
 

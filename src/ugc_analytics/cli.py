@@ -9,15 +9,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 
+from ugc_analytics.analysis.briefs import generate_content_brief
 from ugc_analytics.analysis.performance import get_performance_summary, top_performers
 from ugc_analytics.analysis.profiling import get_creator_profile, list_creators
 from ugc_analytics.analysis.trends import detect_trending_formats
 from ugc_analytics.db import DEFAULT_DB_PATH, get_connection, init_db
+from ugc_analytics.ingestion.api_adapter import SideShiftAPIAdapter
 from ugc_analytics.ingestion.base import sync_all
 from ugc_analytics.ingestion.csv_adapter import CSVIngestionAdapter
 
@@ -35,8 +38,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH), help="Path to the SQLite store")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sync_p = sub.add_parser("sync", help="Ingest data via the CSV adapter")
-    sync_p.add_argument("--source", default="sample_data", help="Directory containing the CSV files")
+    sync_p = sub.add_parser("sync", help="Ingest data via the CSV or SideShift API adapter")
+    sync_p.add_argument("--method", default="csv", choices=["csv", "api"])
+    sync_p.add_argument("--source", default="sample_data", help="Directory containing the CSV files (method=csv)")
+    sync_p.add_argument("--api-key", default=None, help="SideShift API key (method=api; defaults to $SIDESHIFT_API_KEY)")
     sync_p.add_argument("--since", default=None, help="Only ingest records on/after this date (YYYY-MM-DD)")
 
     creators_p = sub.add_parser("list-creators")
@@ -58,13 +63,24 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("trending-formats")
 
+    brief_p = sub.add_parser("content-brief")
+    brief_p.add_argument("--creator-id", required=True)
+    brief_p.add_argument("--format", dest="based_on_format", default=None)
+
     args = parser.parse_args(argv)
     conn = get_connection(Path(args.db))
     init_db(conn)
 
     if args.command == "sync":
         since = date.fromisoformat(args.since) if args.since else None
-        result = sync_all(conn, CSVIngestionAdapter(args.source), since)
+        if args.method == "api":
+            api_key = args.api_key or os.environ.get("SIDESHIFT_API_KEY")
+            if not api_key:
+                parser.error("--api-key or $SIDESHIFT_API_KEY is required for --method api")
+            adapter = SideShiftAPIAdapter(api_key=api_key)
+        else:
+            adapter = CSVIngestionAdapter(args.source)
+        result = sync_all(conn, adapter, since)
         _print(result)
     elif args.command == "list-creators":
         _print(list_creators(conn, niche=args.niche, platform=args.platform, status=args.status))
@@ -79,6 +95,8 @@ def main(argv: list[str] | None = None) -> int:
         _print(top_performers(conn, metric=args.metric, n=args.n))
     elif args.command == "trending-formats":
         _print(detect_trending_formats(conn))
+    elif args.command == "content-brief":
+        _print(generate_content_brief(conn, creator_id=args.creator_id, based_on_format=args.based_on_format))
 
     conn.close()
     return 0
